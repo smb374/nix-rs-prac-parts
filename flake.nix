@@ -94,9 +94,9 @@
               nix build '.#container'
             '';
 
-            scripts.copy-container.exec = ''
-              ${config.apps.skopeo.program} --insecure-policy copy docker-archive:${config.packages.container} containers-storage:localhost/${name}:latest
-              ${config.apps.skopeo.program} --insecure-policy inspect containers-storage:localhost/${name}:latest
+            scripts.copy-container.exec = with config; ''
+              ${apps.skopeo.program} --insecure-policy copy docker-archive:${packages.container} containers-storage:localhost/${name}:latest
+              ${apps.skopeo.program} --insecure-policy inspect containers-storage:localhost/${name}:latest
             '';
 
             enterShell = ''
