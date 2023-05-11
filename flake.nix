@@ -30,6 +30,32 @@
           inherit (pkgs) lib;
 
           craneLib = crane.lib.${system};
+          src = craneLib.cleanCargoSource (craneLib.path ./.);
+
+          # Common arguments can be set here to avoid repeating them later
+          commonArgs = {
+            inherit src;
+
+            buildInputs = [
+              # Add additional build inputs here
+            ] ++ lib.optionals pkgs.stdenv.isDarwin [
+              # Additional darwin specific inputs can be set here
+              pkgs.libiconv
+            ];
+
+            # Additional environment variables can be set directly
+            # MY_CUSTOM_VAR = "some value";
+          };
+
+          # Build *just* the cargo dependencies, so we can reuse
+          # all of that work (e.g. via cachix) when running in CI
+          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
+          # Build the actual crate itself, reusing the dependency
+          # artifacts from above.
+          my-crate = craneLib.buildPackage (commonArgs // {
+            inherit cargoArtifacts;
+          });
         in
         {
           # Per-system attributes can be defined here. The self' and inputs'
@@ -37,18 +63,10 @@
           # system.
 
           # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
-          packages.default = craneLib.buildPackage {
-            src = craneLib.cleanCargoSource (craneLib.path ./.);
-            buildInputs = with pkgs; [
-              # Add additional build inputs here
-            ] ++ lib.optionals stdenv.isDarwin [
-              # Additional darwin specific inputs can be set here
-              libiconv
-            ];
-          };
+          packages.default = my-crate;
 
           devenv.shells.default = {
-            name = "my-project";
+            name = "nix-rs-prac-parts";
 
             # https://devenv.sh/reference/options/
             packages = with pkgs; [
