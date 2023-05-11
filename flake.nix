@@ -18,7 +18,7 @@
     mk-shell-bin.url = "github:rrbutani/nix-mk-shell-bin";
   };
 
-  outputs = inputs@{ flake-parts, crane, ... }:
+  outputs = inputs@{ flake-parts, nix2container, crane, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.devenv.flakeModule
@@ -28,6 +28,8 @@
       perSystem = { config, self', inputs', pkgs, system, ... }:
         let
           inherit (pkgs) lib;
+
+          container = nix2container.packages.${system}.nix2container;
 
           craneLib = crane.lib.${system};
           src = craneLib.cleanCargoSource (craneLib.path ./.);
@@ -64,6 +66,12 @@
 
           # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
           packages.default = my-crate;
+          packages.image = container.buildImage {
+            name = "nix-rs-prac-parts";
+            config = {
+              entrypoint = [ "${config.packages.default}/bin/nix-rs-prac-parts" ];
+            };
+          };
 
           devenv.shells.default = {
             name = "nix-rs-prac-parts";
@@ -73,6 +81,14 @@
               git
               hello
             ];
+
+            scripts.build-container.exec = ''
+              nix build '.#image'
+            '';
+
+            scripts.copy-container.exec = ''
+              nix run '.#image.copyTo' 'containers-storage:localhost/${config.devenv.shells.default.name}:latest'
+            '';
 
             enterShell = ''
             '';
