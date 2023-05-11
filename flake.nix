@@ -29,7 +29,7 @@
         let
           inherit (pkgs) lib;
 
-          container = nix2container.packages.${system}.nix2container;
+          name = "nix-rs-prac-parts";
 
           craneLib = crane.lib.${system};
           src = craneLib.cleanCargoSource (craneLib.path ./.);
@@ -66,11 +66,19 @@
 
           # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
           packages.default = my-crate;
-          packages.image = container.buildImage {
-            name = "nix-rs-prac-parts";
+          packages.container = pkgs.dockerTools.buildLayeredImage {
+            name = name;
+            tag = "latest";
+            created = "now";
+            contents = [ config.packages.default ];
             config = {
-              entrypoint = [ "${config.packages.default}/bin/nix-rs-prac-parts" ];
+              EntryPoint = [ "${config.packages.default}/bin/nix-rs-prac-parts" ];
             };
+          };
+
+          apps.skopeo = {
+            type = "app";
+            program = "${pkgs.skopeo}/bin/skopeo";
           };
 
           devenv.shells.default = {
@@ -83,11 +91,12 @@
             ];
 
             scripts.build-container.exec = ''
-              nix build '.#image'
+              nix build '.#container'
             '';
 
             scripts.copy-container.exec = ''
-              nix run '.#image.copyTo' 'containers-storage:localhost/${config.devenv.shells.default.name}:latest'
+              ${config.apps.skopeo.program} --insecure-policy copy docker-archive:${config.packages.container} containers-storage:localhost/${name}:latest
+              ${config.apps.skopeo.program} --insecure-policy inspect containers-storage:localhost/${name}:latest
             '';
 
             enterShell = ''
