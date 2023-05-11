@@ -18,37 +18,51 @@
     mk-shell-bin.url = "github:rrbutani/nix-mk-shell-bin";
   };
 
-  outputs = inputs@{ flake-parts, ... }:
+  outputs = inputs@{ flake-parts, crane, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.devenv.flakeModule
       ];
       systems = [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
 
-      perSystem = { config, self', inputs', pkgs, system, ... }: {
-        # Per-system attributes can be defined here. The self' and inputs'
-        # module parameters provide easy access to attributes of the same
-        # system.
+      perSystem = { config, self', inputs', pkgs, system, ... }:
+        let
+          inherit (pkgs) lib;
 
-        # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
-        packages.default = pkgs.hello;
+          craneLib = crane.lib.${system};
+        in
+        {
+          # Per-system attributes can be defined here. The self' and inputs'
+          # module parameters provide easy access to attributes of the same
+          # system.
 
-        devenv.shells.default = {
-          name = "my-project";
+          # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
+          packages.default = craneLib.buildPackage {
+            src = craneLib.cleanCargoSource (craneLib.path ./.);
+            buildInputs = with pkgs; [
+              # Add additional build inputs here
+            ] ++ lib.optionals stdenv.isDarwin [
+              # Additional darwin specific inputs can be set here
+              libiconv
+            ];
+          };
 
-          # https://devenv.sh/reference/options/
-          packages = with pkgs; [
-            git
-            hello
-          ];
+          devenv.shells.default = {
+            name = "my-project";
 
-          enterShell = ''
-          '';
+            # https://devenv.sh/reference/options/
+            packages = with pkgs; [
+              git
+              hello
+            ];
 
-          languages.rust.enable = true;
+            enterShell = ''
+            '';
+
+            languages.rust.enable = true;
+          };
+
         };
-
-      };
       flake = {
         # The usual flake attributes can be defined here, including system-
         # agnostic ones like nixosModule and system-enumerating ones, although
