@@ -7,26 +7,40 @@
       url = "github:cachix/devenv";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = inputs@{ flake-parts, crane, ... }:
+  outputs = inputs@{ flake-parts, fenix, crane, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.devenv.flakeModule
       ];
       systems = [ "x86_64-linux" "x86_64-darwin" ];
 
-      perSystem = { config, self', inputs', pkgs, system, ... }:
+      perSystem = { config, self', inputs', lib, pkgs, system, ... }:
         let
           inherit (pkgs) lib;
 
           name = "nix-rs-prac-parts";
 
-          craneLib = crane.lib.${system};
+          fenixStable = fenix.packages.${system}.stable;
+
+          rustToolchain = fenixStable.withComponents [
+            "rustc"
+            "cargo"
+            "clippy"
+            "rust-src"
+            "rust-docs"
+            "llvm-tools-preview"
+          ];
+          craneLib = crane.lib.${system}.overrideToolchain (rustToolchain);
           src = craneLib.cleanCargoSource (craneLib.path ./.);
 
           # Common arguments can be set here to avoid repeating them later
@@ -61,6 +75,8 @@
 
           # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
           packages.default = my-crate;
+          packages.skopeo = pkgs.skopeo;
+
           packages.container = pkgs.dockerTools.buildLayeredImage {
             name = name;
             tag = "latest";
@@ -71,11 +87,6 @@
             };
           };
 
-          apps.skopeo = {
-            type = "app";
-            program = "${pkgs.skopeo}/bin/skopeo";
-          };
-
           devenv.shells.default = {
             name = "nix-rs-prac-parts";
 
@@ -83,21 +94,19 @@
             packages = with pkgs; [
               git
               hello
-            ];
+            ] ++ [ rustToolchain ];
 
             scripts.build-container.exec = ''
               nix build '.#container'
             '';
 
             scripts.copy-container.exec = with config; ''
-              ${apps.skopeo.program} --insecure-policy copy docker-archive:${packages.container} containers-storage:localhost/${name}:latest
-              ${apps.skopeo.program} --insecure-policy inspect containers-storage:localhost/${name}:latest
+              ${lib.getExe packages.skopeo} --insecure-policy copy docker-archive:${packages.container} containers-storage:localhost/${name}:latest
+              ${lib.getExe packages.skopeo} --insecure-policy inspect containers-storage:localhost/${name}:latest
             '';
 
             enterShell = ''
             '';
-
-            languages.rust.enable = true;
           };
 
         };
