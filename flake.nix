@@ -13,7 +13,7 @@
     };
   };
 
-  outputs = inputs@{ flake-parts, nix2container, crane, ... }:
+  outputs = inputs@{ flake-parts, crane, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.devenv.flakeModule
