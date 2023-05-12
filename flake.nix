@@ -55,8 +55,14 @@
               pkgs.libiconv
             ];
 
+            nativeBuildInputs = [
+              pkgs.clang
+              pkgs.mold
+            ];
+
             # Additional environment variables can be set directly
             # MY_CUSTOM_VAR = "some value";
+            RUSTFLAGS = "-C linker=${lib.getExe pkgs.clang} -C link-arg=-fuse-ld=${lib.getExe pkgs.mold}";
           };
 
           # Build *just* the cargo dependencies, so we can reuse
@@ -77,25 +83,30 @@
           # Equivalent to  inputs'.nixpkgs.legacyPackages.hello;
           packages.default = my-crate;
           packages.skopeo = pkgs.skopeo;
+          packages.mold = pkgs.mold;
 
-          packages.container = pkgs.dockerTools.buildLayeredImage {
+          packages.container = with config; pkgs.dockerTools.buildLayeredImage {
             name = name;
             tag = "latest";
             created = "now";
-            contents = [ config.packages.default ];
+            contents = [ packages.default ];
             config = {
-              EntryPoint = [ "${config.packages.default}/bin/nix-rs-prac-parts" ];
+              EntryPoint = [ "${lib.getExe packages.default}" ];
             };
           };
 
           devenv.shells.default = {
-            name = "nix-rs-prac-parts";
+            name = name;
 
             # https://devenv.sh/reference/options/
-            packages = with pkgs; [
+            packages = with config; with pkgs; [
               git
               hello
-            ] ++ [ rustToolchain ];
+              clang
+              mold
+            ] ++ [
+              rustToolchain
+            ];
 
             scripts.build-container.exec = ''
               nix build '.#container'
@@ -108,6 +119,7 @@
             '';
 
             enterShell = ''
+              hello
             '';
           };
 
