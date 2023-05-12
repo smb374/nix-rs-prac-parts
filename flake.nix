@@ -38,6 +38,7 @@
             "clippy"
             "rust-src"
             "rust-docs"
+            "rust-analyzer"
             "llvm-tools-preview"
           ];
           craneLib = crane.lib.${system}.overrideToolchain (rustToolchain);
@@ -101,7 +102,8 @@
             '';
 
             scripts.copy-container.exec = with config; ''
-              ${lib.getExe packages.skopeo} --insecure-policy copy docker-archive:${packages.container} containers-storage:localhost/${name}:latest
+              IMAGE_PATH=$(nix eval --raw '.#packages.${system}.container')
+              ${lib.getExe packages.skopeo} --insecure-policy copy docker-archive:"$IMAGE_PATH" containers-storage:localhost/${name}:latest
               ${lib.getExe packages.skopeo} --insecure-policy inspect containers-storage:localhost/${name}:latest
             '';
 
